@@ -369,7 +369,7 @@ Planned next steps:
 
 ---
 
-## Resume Summary
+## Key Takeaways
 
 ```text
 Deep Learning News Classification | Python, TensorFlow, Keras, NLP, Scikit-learn, Streamlit
