@@ -1,389 +1,182 @@
 # Deep Learning News Classification
 
-A deep learning NLP project for multi-class news category classification using a TF-IDF baseline model and a BiLSTM neural network.
+An end-to-end, four-class text classification project comparing a **TF-IDF + Logistic Regression** baseline with a **Bidirectional LSTM (BiLSTM)**. The evaluation pipeline uses **separate training, validation, and held-out test sets** to avoid using test labels for early stopping.
 
-This project demonstrates text preprocessing, classical machine learning baseline comparison, deep learning sequence modeling, model evaluation, visualization, and a Streamlit prediction demo.
+## Key results
 
----
+On the latest reported run (25 November 2026), **TF-IDF + Logistic Regression outperformed BiLSTM** on the held-out test set:
 
-## Project Overview
+| Model | Accuracy | Macro precision | Macro recall | Macro F1 |
+|---|---:|---:|---:|---:|
+| TF-IDF + Logistic Regression | **94.56%** | **94.58%** | **94.55%** | **94.56%** |
+| BiLSTM | 92.30% | 92.60% | 92.28% | 92.33% |
 
-News classification is a common Natural Language Processing task where the goal is to automatically assign a news article or text document to the correct category.
+These are results from a **random stratified split** of the selected `20 Newsgroups` texts after cleaning, **not** the dataset's original official train/test partition. They are specific to this experiment and are not claims of general-purpose news-classification performance. Stochastic deep learning results may vary across runs unless all random seeds and execution settings are controlled.
 
-This project classifies text into selected 20 Newsgroups categories:
+## Dataset
+
+The project uses four categories from scikit-learn's **20 Newsgroups** dataset:
 
 - `comp.graphics`
 - `rec.sport.baseball`
 - `sci.med`
 - `talk.politics.mideast`
 
-The project includes:
+The loader requests the full selected-category dataset using `fetch_20newsgroups(subset="all", remove=("headers", "footers", "quotes"))`. It removes empty records and does **not** silently replace a failed download with a tiny synthetic dataset. The dataset may need an internet connection the first time it is fetched.
 
-- Text loading using the 20 Newsgroups dataset
-- Text cleaning and preprocessing
-- TF-IDF + Logistic Regression baseline model
-- Tokenization and sequence padding
-- Embedding layer + BiLSTM deep learning model
-- Baseline vs deep learning model comparison
-- Accuracy, precision, recall, and F1-score evaluation
-- Classification report
-- Confusion matrix
-- Training accuracy and loss curves
-- Streamlit app for real-time news category prediction
+### Latest reported data split
 
----
-
-## Why This Project Matters
-
-Deep learning is powerful, but it is not always better than strong classical machine learning baselines.
-
-This project compares a traditional NLP model with a deep learning model:
-
-```text
-TF-IDF + Logistic Regression
-vs
-Embedding + BiLSTM
-```
-
-The baseline model outperformed the BiLSTM model on this dataset, which shows the importance of model comparison and not assuming that deep learning is always the best solution.
-
----
-
-## Dataset
-
-The project uses a selected subset of the `20 Newsgroups` dataset from scikit-learn.
-
-Selected categories:
-
-```text
-comp.graphics
-rec.sport.baseball
-sci.med
-talk.politics.mideast
-```
-
-After preprocessing:
-
-| Metric | Value |
+| Stage | Documents |
 |---|---:|
-| Training samples | 3,016 |
-| Test samples | 755 |
-| Number of classes | 4 |
+| Loaded | 3,792 |
+| After cleaning and exact cleaned-text deduplication | 3,761 |
+| Training | 2,406 (about 64%) |
+| Validation | 602 (about 16%) |
+| Held-out test | 753 (about 20%) |
 
----
-
-## Project Structure
-
-```text
-deep-learning-news-classification/
-│
-├── app/
-│   └── streamlit_app.py
-│
-├── data/
-│   ├── raw/
-│   └── processed/
-│
-├── models/
-│   ├── baseline_tfidf_logistic_model.joblib
-│   ├── label_encoder.joblib
-│   ├── news_bilstm_model.keras
-│   └── tokenizer.joblib
-│
-├── results/
-│   ├── figures/
-│   │   ├── class_distribution.png
-│   │   ├── confusion_matrix.png
-│   │   ├── training_accuracy.png
-│   │   └── training_loss.png
-│   │
-│   ├── classification_report.csv
-│   └── metrics.csv
-│
-├── screenshots/
-│   ├── news_classification_prediction_demo.png
-│   ├── news_classification_visualizations.png
-│   └── news_classification_training_curves.png
-│
-├── src/
-│   ├── __init__.py
-│   ├── config.py
-│   ├── data_loader.py
-│   ├── preprocessing.py
-│   ├── baseline_model.py
-│   ├── deep_model.py
-│   ├── evaluation.py
-│   ├── predict.py
-│   └── visualization.py
-│
-├── .gitignore
-├── main.py
-├── README.md
-└── requirements.txt
-```
-
----
+The `TEST_SIZE=0.2` parameter applies to the whole dataset. `VALIDATION_SIZE=0.2` then applies to the remaining 80%, yielding an approximately **64/16/20** split. Both splits are stratified by class. Documents with identical **cleaned text** are removed before splitting, reducing—but not proving the absence of—all forms of near-duplicate leakage.
 
 ## Methodology
 
-### 1. Data Loading
+### 1. Text preparation
 
-The project loads a selected subset of the 20 Newsgroups dataset using scikit-learn.
+The preprocessing pipeline lowercases text, removes URLs and nonalphabetic characters, collapses whitespace, filters very short cleaned texts, and removes exact duplicates by cleaned text.
 
-The selected classes represent different domains:
+### 2. Independent data partitions
 
-- Computer graphics
-- Baseball sports news
-- Medical discussion
-- Middle East politics
+- **Train:** fits the TF-IDF vectorizer, Logistic Regression classifier, text tokenizer, label encoder, and BiLSTM weights.
+- **Validation:** monitors BiLSTM `val_loss` for early stopping and selects the best weights; it is **never used as the test set**.
+- **Test:** evaluates the final baseline and final BiLSTM only after model training; model comparisons are saved to CSV.
 
----
+The baseline is a scikit-learn `Pipeline`, ensuring TF-IDF vocabulary and IDF statistics are fitted only on training text. The neural tokenizer is also fitted only on training text.
 
-### 2. Text Preprocessing
+### 3. Baseline: TF-IDF + Logistic Regression
 
-The preprocessing stage includes:
+`TfidfVectorizer` uses up to 10,000 features, word unigrams/bigrams, and English stop-word filtering. A `LogisticRegression` classifier predicts the four categories.
 
-- Lowercasing text
-- Removing URLs
-- Removing non-alphabetic characters
-- Removing extra whitespace
-- Filtering very short text samples
-- Creating cleaned text for modeling
+### 4. Deep model: Embedding + BiLSTM
 
----
+The Keras model uses an embedding layer, bidirectional LSTM, dropout, dense layers, and softmax output. It uses up to 10,000 vocabulary entries, padded sequences of length 200, embedding dimension 128, batch size 32, and a maximum of four epochs. `EarlyStopping` monitors validation loss with patience 2 and restores the best validation weights.
 
-### 3. Baseline Model
+The output `results/classification_report.csv` is the **BiLSTM** test classification report. `results/metrics.csv` compares **both** models on the held-out test set.
 
-The baseline model uses:
+## Run locally (Windows Command Prompt)
 
-```text
-TF-IDF Vectorization + Logistic Regression
-```
+Tested by the project author using **Python 3.12** and **TensorFlow 2.21.0** on Windows, with CPU training.
 
-This is a strong classical NLP baseline for text classification.
-
-The baseline is important because it gives a realistic benchmark for evaluating whether the deep learning model actually improves performance.
-
----
-
-### 4. Deep Learning Model
-
-The deep learning model uses:
-
-```text
-Embedding Layer
-Bidirectional LSTM
-Dropout
-Dense Layers
-Softmax Output
-```
-
-The BiLSTM model learns word sequence patterns and predicts one of the four news categories.
-
----
-
-## Model Results
-
-| Model | Accuracy | Precision Macro | Recall Macro | F1 Macro |
-|---|---:|---:|---:|---:|
-| TF-IDF + Logistic Regression | 0.939 | 0.940 | 0.939 | 0.939 |
-| BiLSTM Deep Learning Model | 0.862 | 0.873 | 0.861 | 0.862 |
-
-The TF-IDF + Logistic Regression baseline achieved higher accuracy than the BiLSTM model.
-
-This result highlights an important machine learning lesson:
-
-```text
-A simpler model with strong feature representation can outperform a deep learning model, especially on smaller or cleaner text classification datasets.
-```
-
----
-
-## Streamlit App
-
-The project includes a Streamlit app for real-time news category prediction.
-
-Run the app:
-
-```bash
-streamlit run app/streamlit_app.py
-```
-
-The app includes:
-
-- Model comparison table
-- Text input area
-- Predicted category
-- Prediction confidence
-- Class probabilities
-- Class distribution chart
-- Confusion matrix
-- Training accuracy curve
-- Training loss curve
-- Project components
-
----
-
-## App Preview
-
-### Prediction Demo
-
-![News Classification Prediction Demo](screenshots/news_classification_prediction_demo.png)
-
-### Model Visualizations
-
-![News Classification Visualizations](screenshots/news_classification_visualizations.png)
-
-### Training Curves
-
-![News Classification Training Curves](screenshots/news_classification_training_curves.png)
-
----
-
-## Result Visualizations
-
-### Class Distribution
-
-![Class Distribution](results/figures/class_distribution.png)
-
-### Confusion Matrix
-
-![Confusion Matrix](results/figures/confusion_matrix.png)
-
-### Training Accuracy
-
-![Training Accuracy](results/figures/training_accuracy.png)
-
-### Training Loss
-
-![Training Loss](results/figures/training_loss.png)
-
----
-
-## How to Run
-
-### 1. Clone the repository
-
-```bash
+```cmd
+# Clone and enter repository
 git clone https://github.com/Zahra-ziaee/deep-learning-news-classification.git
 cd deep-learning-news-classification
-```
 
-### 2. Create and activate virtual environment
+# Create and activate a dedicated environment
+py -3.12 -m venv .venv
+.venv\Scripts\activate.bat
 
-Windows PowerShell:
+# Install dependencies
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
 
-```bash
-python -m venv .venv
-.venv\Scripts\Activate.ps1
-```
+# Run automated split/loader checks
+python -m unittest discover -s tests -p "test_*.py" -v
 
-### 3. Install dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Run the training pipeline
-
-```bash
+# Download (if needed), train, evaluate and generate charts
 python main.py
+
+# Launch the prediction app
+python -m streamlit run app/streamlit_app.py
 ```
 
-### 5. Run the Streamlit app
+**Note:** TensorFlow 2.11+ does not provide native-Windows CUDA GPU support. Training on native Windows is expected to use CPU; GPU setups typically require WSL2 or a different supported environment. If dependencies were already installed, avoid reinstalling them needlessly—first run `python -m pip check`.
 
-```bash
-streamlit run app/streamlit_app.py
-```
-
----
-
-## Outputs
-
-Running the project generates:
+## Project structure
 
 ```text
-models/baseline_tfidf_logistic_model.joblib
-models/label_encoder.joblib
-models/news_bilstm_model.keras
-models/tokenizer.joblib
-
-results/metrics.csv
-results/classification_report.csv
-
-results/figures/class_distribution.png
-results/figures/confusion_matrix.png
-results/figures/training_accuracy.png
-results/figures/training_loss.png
+deep-learning-news-classification/
+|-- app/
+|   `-- streamlit_app.py
+|-- src/
+|   |-- config.py
+|   |-- data_loader.py
+|   |-- preprocessing.py
+|   |-- baseline_model.py
+|   |-- deep_model.py
+|   |-- evaluation.py
+|   |-- predict.py
+|   `-- visualization.py
+|-- tests/
+|   `-- test_data_split.py
+|-- data/                   # Generated content excluded from git
+|-- models/                 # Generated artifacts excluded from git
+|-- results/
+|   |-- metrics.csv
+|   |-- classification_report.csv
+|   `-- figures/
+|-- screenshots/
+|-- main.py
+|-- requirements.txt
+`-- README.md
 ```
 
----
+## Generated outputs
 
-## Current Status
+| Path | Description |
+|---|---|
+| `results/metrics.csv` | Held-out test accuracy, macro precision, recall, and F1 for both models |
+| `results/classification_report.csv` | Per-class test classification report for BiLSTM |
+| `results/figures/class_distribution.png` | Class counts after preprocessing |
+| `results/figures/confusion_matrix.png` | BiLSTM test confusion matrix |
+| `results/figures/training_accuracy.png` | Train vs validation accuracy by epoch |
+| `results/figures/training_loss.png` | Train vs validation loss by epoch |
+| `models/baseline_tfidf_logistic_model.joblib` | Trained TF-IDF + Logistic Regression pipeline |
+| `models/news_bilstm_model.keras` | Trained BiLSTM |
+| `models/tokenizer.joblib` | Fitted training-text tokenizer |
+| `models/label_encoder.joblib` | Fitted training-label encoder |
 
-Completed:
+`data/` and `models/` are ignored by git; generating them requires running the pipeline. The chart files and metric CSVs are regenerated when `python main.py` completes.
 
-- Dataset loading
-- Text preprocessing
-- TF-IDF baseline model
-- Logistic Regression classification
-- Tokenization and sequence padding
-- BiLSTM deep learning model
-- Model comparison
-- Classification evaluation
-- Confusion matrix
-- Training curves
-- Streamlit prediction app
-- App screenshots
-- GitHub-ready structure
+## Dashboard and visualizations
 
-Planned next steps:
+The Streamlit app uses the fitted **BiLSTM** for user-entered text classification and displays model-comparison metrics and saved figures. The displayed softmax "confidence" is **not a calibrated reliability guarantee**.
 
-- Add CNN text classification model
-- Add transformer-based embeddings
-- Add more categories
-- Add hyperparameter tuning
-- Add model selection option in Streamlit
-- Add automated tests
-- Add GitHub Actions workflow
+### Prediction demo
 
----
+![News classification prediction demo](screenshots/news_classification_prediction_demo.png)
 
-## Technologies Used
+### Model visualizations
 
-- Python
-- Pandas
-- NumPy
-- Scikit-learn
-- TensorFlow
-- Keras
-- NLP
-- TF-IDF
-- Logistic Regression
-- BiLSTM
-- Streamlit
-- Matplotlib
-- Joblib
-- Git
-- GitHub
+![News classification visualizations](screenshots/news_classification_visualizations.png)
 
----
+### Training curves
 
-## Key Takeaways
+![News classification training curves](screenshots/news_classification_training_curves.png)
 
-```text
-Deep Learning News Classification | Python, TensorFlow, Keras, NLP, Scikit-learn, Streamlit
+*Screenshots captured from the updated Streamlit dashboard after retraining on the independent train/validation/test split (25 November 2026). The shown example prediction is a demo; the displayed softmax score is not a calibrated confidence guarantee.*
 
-- Built an NLP text classification pipeline using TF-IDF baseline modeling and a BiLSTM deep learning model.
-- Implemented text cleaning, tokenization, sequence padding, embedding layers, and Bidirectional LSTM classification.
-- Compared the BiLSTM model against a TF-IDF + Logistic Regression baseline.
-- Achieved 93.9% accuracy with the TF-IDF baseline and 86.2% accuracy with the BiLSTM model.
-- Built a Streamlit app for real-time news category prediction, class probabilities, model comparison, and visualization.
-```
+### Generated evaluation plots
 
----
+![Class distribution](results/figures/class_distribution.png)
+
+![BiLSTM confusion matrix](results/figures/confusion_matrix.png)
+
+![Training accuracy](results/figures/training_accuracy.png)
+
+![Training loss](results/figures/training_loss.png)
+
+## Quality checks and limitations
+
+- **Automated tests:** four tests cover stratified, nonoverlapping data partitions; exact cleaned-text duplicate removal; handling of inadequate sample sizes; and an explicit error for dataset download failure. These checks passed in the latest reported run.
+- **Held-out evaluation:** test labels are not supplied to the neural network during training or early stopping.
+- **Remaining data risks:** the 20 Newsgroups dataset may contain semantically similar or related posts beyond exact duplicates. Random splits do not establish out-of-time or out-of-domain generalization.
+- **No extensive tuning:** results are for the stated baseline and BiLSTM configurations; no exhaustive hyperparameter search or uncertainty interval is reported.
+- **Reproducibility:** the scikit-learn split uses a fixed random state. Keras/TensorFlow weight initialization and training may still vary across runs.
+- **Deployment:** the app is a local demonstration. Input handling, performance testing, model monitoring and probability calibration would need additional work for production use.
+- **Versioning:** `requirements.txt` pins top-level packages from the provided environment snapshot, not a fully locked transitive dependency graph.
+
+## Interview / résumé summary
+
+> Developed a four-class NLP classification pipeline comparing TF-IDF + Logistic Regression with a BiLSTM neural network. Corrected validation leakage by separating train, validation, and held-out test data; fitted preprocessing on training text only; and added automated split checks. On 753 held-out documents, achieved **94.56% accuracy / 94.56% macro F1** with Logistic Regression and **92.30% accuracy / 92.33% macro F1** with BiLSTM, highlighting the importance of strong classical baselines.
 
 ## Author
 
-Zahra Ziaee  
-Focus: Machine Learning, NLP, Deep Learning, Text Classification, Data Science, and Applied AI
+**Zahra Ziaee** · [GitHub](https://github.com/Zahra-ziaee)

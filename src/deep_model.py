@@ -28,40 +28,37 @@ def build_bilstm_model(num_classes: int) -> Sequential:
             Dense(num_classes, activation="softmax"),
         ]
     )
-
     model.compile(
         optimizer="adam",
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )
-
     return model
 
 
-def train_deep_model(X_train_padded, y_train_encoded, X_test_padded, y_test_encoded, num_classes):
+def train_deep_model(
+    X_train_padded,
+    y_train_encoded,
+    X_val_padded,
+    y_val_encoded,
+    num_classes,
+):
+    """Fit using training data; use validation (never test) for EarlyStopping."""
     print("\nTraining Deep Learning BiLSTM model...")
-
     model = build_bilstm_model(num_classes=num_classes)
-
     early_stopping = EarlyStopping(
-        monitor="val_loss",
-        patience=2,
-        restore_best_weights=True,
+        monitor="val_loss", patience=2, restore_best_weights=True,
     )
-
     history = model.fit(
         X_train_padded,
         y_train_encoded,
-        validation_data=(X_test_padded, y_test_encoded),
+        validation_data=(X_val_padded, y_val_encoded),
         epochs=EPOCHS,
         batch_size=BATCH_SIZE,
         callbacks=[early_stopping],
         verbose=1,
     )
-
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     model.save(DEEP_MODEL_FILE)
-
     print(f"Deep learning model saved to: {DEEP_MODEL_FILE}")
-
     return model, history
