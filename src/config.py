@@ -22,6 +22,7 @@ CLASSIFICATION_REPORT_FILE = RESULTS_DIR / "classification_report.csv"
 
 RANDOM_STATE = 42
 TEST_SIZE = 0.2
+VALIDATION_SIZE = 0.2  # Fraction of the remaining training pool
 
 MAX_WORDS = 10000
 MAX_SEQUENCE_LENGTH = 200

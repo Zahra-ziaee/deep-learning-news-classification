@@ -33,30 +33,38 @@ def main():
     save_processed_dataset(processed_df)
     print_dataset_summary(processed_df)
 
-    print_section("Train/Test Split")
-    X_train, X_test, y_train, y_test = split_dataset(processed_df)
+    print_section("Train / Validation / Test Split")
+    (
+        X_train, X_val, X_test,
+        y_train, y_val, y_test,
+    ) = split_dataset(processed_df)
 
-    print(f"X_train: {X_train.shape}")
-    print(f"X_test: {X_test.shape}")
+    print(f"Training samples: {len(X_train)}")
+    print(f"Validation samples: {len(X_val)}")
+    print(f"Test samples (held out): {len(X_test)}")
 
     print_section("Baseline Model")
     baseline_model = train_baseline_model(X_train, y_train)
 
     print_section("Deep Learning Preprocessing")
-    y_train_encoded, y_test_encoded, label_encoder = encode_labels(y_train, y_test)
-    X_train_padded, X_test_padded, tokenizer = tokenize_text(X_train, X_test)
+    (
+        y_train_encoded, y_val_encoded, y_test_encoded, label_encoder,
+    ) = encode_labels(y_train, y_val, y_test)
+    (
+        X_train_padded, X_val_padded, X_test_padded, tokenizer,
+    ) = tokenize_text(X_train, X_val, X_test)
 
     print_section("Deep Learning Model")
     num_classes = len(label_encoder.classes_)
     deep_model, history = train_deep_model(
         X_train_padded=X_train_padded,
         y_train_encoded=y_train_encoded,
-        X_test_padded=X_test_padded,
-        y_test_encoded=y_test_encoded,
+        X_val_padded=X_val_padded,
+        y_val_encoded=y_val_encoded,
         num_classes=num_classes,
     )
 
-    print_section("Evaluation")
+    print_section("Final Evaluation on Held-Out Test Only")
     metrics_df, baseline_predictions, deep_predictions = evaluate_models(
         baseline_model=baseline_model,
         deep_model=deep_model,
